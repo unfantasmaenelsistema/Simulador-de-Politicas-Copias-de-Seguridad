@@ -11,6 +11,11 @@
   body {
     font-family: var(--font-sans);
   }
+
+  /* Rutas y nombres largos sin espacios: sin esto desbordan en móvil */
+  p, li {
+    overflow-wrap: anywhere;
+  }
 }
 
 @media print {

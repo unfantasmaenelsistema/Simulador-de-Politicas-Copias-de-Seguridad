@@ -6,6 +6,7 @@ import {
   SimulationParams,
   StorageMedium,
   computeRestorationPlan,
+  formatRpoHours,
   getBackupTypeLabel,
 } from '../data/backupEngine';
 import {
@@ -55,6 +56,9 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
     (restorationPlan.totalRestoreTimeMinutes - params.targetRTOMinutes).toFixed(1)
   );
   const rpoDiffHours = restorationPlan.rpoHoursLost - params.targetRPOHours;
+  const rpoText = formatRpoHours(restorationPlan.rpoHoursLost);
+  const rpoExcessText =
+    Number.isFinite(rpoDiffHours) && rpoDiffHours > 0 ? ` (+${rpoDiffHours} h sobre el SLA)` : '';
 
   // Evaluamos el cumplimiento de RTO y RPO para cada día de la semana con el fin de señalizar días críticos en el selector
   const daySLABreaches = React.useMemo(() => {
@@ -119,15 +123,17 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                     <li>
                       • <strong>Alerta RPO (Punto de Recuperación / Pérdida de Datos):</strong> La
                       ventana de datos perdidos alcanza{' '}
-                      <strong className="font-mono">~{restorationPlan.rpoHoursLost} h</strong> (
+                      <strong className="font-mono">{rpoText}</strong> (
                       <strong className="font-mono">{restorationPlan.rpoDataLostGB} GB</strong> no
-                      respaldados), superando el límite de{' '}
+                      recuperables), superando el límite de{' '}
                       <strong className="font-mono">{params.targetRPOHours} h</strong>
-                      {rpoDiffHours > 0 ? ` (+${rpoDiffHours} h sobre el SLA)` : ''}.{' '}
+                      {rpoExcessText}.{' '}
                       <span className="underline decoration-red-400">
                         Recomendación:
                       </span>{' '}
-                      Elimina días configurados como «Sin Copia» o reduce el intervalo entre copias.
+                      {restorationPlan.isPartialDueToCorruption || !restorationPlan.isRecoverable
+                        ? 'Un solo soporte dañado no debería costar días de datos: añade una segunda copia (3-2-1), acorta la cadena con Diferenciales o verifica las copias tras cada ejecución.'
+                        : 'Elimina días configurados como «Sin Copia» o reduce el intervalo entre copias.'}
                     </li>
                   )}
                 </ul>
@@ -142,7 +148,7 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
               )}
               {rpoExceeded && (
                 <span className="px-2.5 py-1 rounded border border-red-400 dark:border-red-700 bg-red-100 dark:bg-red-900/60 text-red-900 dark:text-red-100 font-semibold whitespace-nowrap">
-                  ▲ RPO: {restorationPlan.rpoHoursLost}h &gt; {params.targetRPOHours}h
+                  ▲ RPO: {rpoText} &gt; {params.targetRPOHours} h
                 </span>
               )}
             </div>
@@ -177,7 +183,7 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                   <span>Indica día que supera RTO ({params.targetRTOMinutes}m) o RPO ({params.targetRPOHours}h)</span>
                 </span>
               </div>
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2">
                 {computedDays.map((day) => {
                   const isSelected = day.id === disasterDayId;
                   const breach = daySLABreaches[day.id];
@@ -190,10 +196,10 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                       onClick={() => onSelectDisasterDay(day.id)}
                       title={
                         hasBreach
-                          ? `Alerta SLA en ${day.name}: RTO ${breach.rtoMin}m / RPO ${breach.rpoHours}h`
+                          ? `Alerta SLA en ${day.name}: RTO ${breach.rtoMin} min / RPO ${formatRpoHours(breach.rpoHours)}`
                           : `${day.name}: Cumple objetivos RTO y RPO`
                       }
-                      className={`p-2.5 rounded-lg border text-center transition-all cursor-pointer relative ${
+                      className={`px-0.5 py-2 sm:p-2.5 rounded-lg border text-center min-w-0 overflow-hidden transition-all cursor-pointer relative ${
                         isSelected
                           ? hasBreach
                             ? 'bg-red-600 text-white border-red-700 ring-2 ring-red-500/40 shadow-xs'
@@ -246,7 +252,7 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                   }`}
                 >
                   <div className="text-xs font-semibold flex items-center justify-between">
-                    <span>Tras finalizar el backup (23:59h)</span>
+                    <span>Justo tras finalizar el backup</span>
                     {disasterTiming === 'after_backup' && (
                       <span className="font-mono text-[11px] text-sky-600 dark:text-sky-400">
                         ● Activo
@@ -277,8 +283,8 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                     )}
                   </div>
                   <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                    El fallo ocurre ANTES del backup nocturno del {restorationPlan.disasterDayName}.
-                    Genera al menos ~16h de pérdida de datos (RPO).
+                    El fallo ocurre ANTES del backup nocturno del {restorationPlan.disasterDayName}:
+                    se pierde al menos lo hecho desde las 22:00 de la víspera (~16 h).
                   </p>
                 </button>
               </div>
@@ -404,8 +410,8 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                 <div className="text-[11px] mt-1.5 font-mono tabular-nums">
                   {rtoExceeded ? (
                     <span className="text-red-700 dark:text-red-300 font-medium">
-                      {restorationPlan.isPartialDueToCorruption || !restorationPlan.isRecoverable
-                        ? '✕ Cadena rota o sin base'
+                      {!restorationPlan.isRecoverable
+                        ? '✕ Sin cadena válida que restaurar'
                         : `▲ Supera objetivo en +${rtoDiffMinutes} min (${restorationPlan.setsRequiredCount} pasos)`}
                     </span>
                   ) : (
@@ -450,7 +456,7 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                         : 'text-emerald-700 dark:text-emerald-400'
                     }`}
                   >
-                    {restorationPlan.rpoHoursLost} h
+                    {rpoText}
                   </span>
                   <span className="text-xs text-slate-500 dark:text-slate-400">
                     / máx {params.targetRPOHours} h
@@ -460,7 +466,7 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                 <div className="text-[11px] mt-1.5 font-mono tabular-nums">
                   {rpoExceeded ? (
                     <span className="text-red-700 dark:text-red-300 font-medium">
-                      ▲ Pierde {restorationPlan.rpoDataLostGB} GB (+{rpoDiffHours} h sobre el SLA)
+                      ▲ Pierde {restorationPlan.rpoDataLostGB} GB{rpoExcessText}
                     </span>
                   ) : (
                     <span className="text-slate-600 dark:text-slate-400">
@@ -601,6 +607,11 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
             const isCorrupted = corruptedDayId === day.id;
             const isUnbackedBeforeDisaster =
               !isAfterDisaster && day.backupType === 'none';
+            // Un día sin copia solo cuesta datos si queda después del punto restaurado;
+            // si no, sus cambios ya van dentro de la copia siguiente
+            const restorePoint = restorationPlan.restorePointIndex;
+            const unbackedAddsLoss =
+              isUnbackedBeforeDisaster && (restorePoint === null || idx > restorePoint);
 
             return (
               <div
@@ -610,8 +621,10 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                     ? isCorrupted
                       ? 'border-red-600 bg-red-50/40 dark:bg-red-950/30'
                       : 'border-emerald-600 bg-emerald-50/30 dark:bg-emerald-950/20 shadow-xs'
-                    : isUnbackedBeforeDisaster && rpoExceeded
+                    : unbackedAddsLoss && rpoExceeded
                     ? 'border-red-500 bg-red-50/40 dark:bg-red-950/25'
+                    : discardedFound && isCorrupted
+                    ? 'border-red-400 bg-red-50/30 dark:bg-red-950/20'
                     : discardedFound
                     ? 'border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/30 opacity-75'
                     : 'border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/30 opacity-50'
@@ -626,7 +639,15 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                       </span>
                     )}
                     {discardedFound && (
-                      <span className="text-slate-500 dark:text-slate-400">OMITIDO</span>
+                      <span
+                        className={
+                          isCorrupted
+                            ? 'text-red-600 dark:text-red-400 font-semibold'
+                            : 'text-slate-500 dark:text-slate-400'
+                        }
+                      >
+                        {discardedFound.shortReason.toUpperCase()}
+                      </span>
                     )}
                     {isAfterDisaster && (
                       <span className="text-red-600 dark:text-red-400">POST-FALLO</span>
@@ -656,19 +677,17 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
                       ✕ SOPORTE CORRUPTO: Rompe el paso #{stepFound.stepNumber}
                     </span>
                   )}
-                  {discardedFound && (
-                    <span>
-                      Saltado: Ya englobado en copia posterior
-                      {isCorrupted ? ' (Su corrupción NO afecta)' : ''}.
-                    </span>
-                  )}
+                  {discardedFound && <span>{discardedFound.discardReason}</span>}
                   {!stepFound && !discardedFound && isAfterDisaster && (
                     <span>No ejecutado antes del siniestro.</span>
                   )}
-                  {isUnbackedBeforeDisaster && (
+                  {unbackedAddsLoss && (
                     <span className="text-red-600 dark:text-red-400 font-medium">
-                      ▲ +{day.dailyChangeGB} GB sin respaldar (+24h al RPO).
+                      ▲ +{day.dailyChangeGB} GB sin respaldar (+24 h al RPO).
                     </span>
+                  )}
+                  {isUnbackedBeforeDisaster && !unbackedAddsLoss && (
+                    <span>Sin copia ese día: sus cambios entran en la copia siguiente.</span>
                   )}
                 </div>
               </div>
@@ -839,6 +858,10 @@ export const RestorationSimulatorView: React.FC<RestorationSimulatorViewProps> =
             <p>
               3. Por último, aplica en orden todas las <strong>Incrementales</strong> posteriores a
               esa Diferencial (o posteriores a la Completa si no hubo ninguna Diferencial).
+            </p>
+            <p>
+              4. Si uno de esos soportes está <strong>dañado</strong>, retrocede al punto más
+              reciente cuya cadena no lo necesite: el RPO crece hasta ese punto.
             </p>
           </div>
         </section>

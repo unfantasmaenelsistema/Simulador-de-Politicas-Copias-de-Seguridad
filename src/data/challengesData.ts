@@ -19,6 +19,7 @@ export interface LabChallenge {
     fridayAfterBackupRTOMinutes: number;
     hasFullOnMonday: boolean;
     unbackedDaysCount: number;
+    unbackedWeekdaysCount: number;
     is32110Compliant: boolean;
   }) => {
     passed: boolean;
@@ -100,6 +101,11 @@ export const LAB_CHALLENGES: LabChallenge[] = [
         feedback.push('Debes iniciar la semana con una Copia Completa el Lunes.');
       }
 
+      if (m.unbackedWeekdaysCount > 0) {
+        passed = false;
+        feedback.push(`Hay ${m.unbackedWeekdaysCount} día(s) laborable(s) sin copia: de Lunes a Viernes todos deben tener respaldo.`);
+      }
+
       if (m.fridayAfterBackupRestoreSteps > 2) {
         passed = false;
         feedback.push(`Restaurar el Viernes requiere actualmente ${m.fridayAfterBackupRestoreSteps} pasos (máximo permitido: 2 pasos).`);
@@ -124,7 +130,7 @@ export const LAB_CHALLENGES: LabChallenge[] = [
     context:
       'Una planta industrial ha sido auditada por su aseguradora cibernética. Para aprobar la póliza, la arquitectura debe cumplir la regla 3-2-1-1-0 y tener una política semanal válida con RTO en Viernes inferior a 45 minutos.',
     constraints: [
-      'Cumplir la regla 3-2-1-1-0 en la pestaña "Arquitectura 3-2-1" (3 copias, 2 medios, 1 offsite, 1 inmutable/air-gap)',
+      'Cumplir la regla 3-2-1-1-0 en la pestaña "Arquitectura 3-2-1" (3 copias, 2 medios, 1 offsite, 1 inmutable/air-gap; el «0» se demuestra con pruebas de restauración)',
       'Tiempo de restauración (RTO) en Viernes <= 45 minutos',
       'Sin días laborables descubiertos'
     ],
@@ -142,7 +148,14 @@ export const LAB_CHALLENGES: LabChallenge[] = [
         passed = false;
         feedback.push('La arquitectura aún no cumple el estándar 3-2-1-1-0 completo (revisa que exista copia Offsite e Inmutabilidad WORM/Air-Gap).');
       } else {
-        feedback.push('Arquitectura 3-2-1-1-0 validada contra fallo de hardware, ransomware e incendio.');
+        feedback.push('Arquitectura 3-2-1-1 validada contra fallo de hardware, ransomware e incendio. El «0» (cero errores) exige además probar la restauración periódicamente.');
+      }
+
+      if (m.unbackedWeekdaysCount > 0) {
+        passed = false;
+        feedback.push(`Hay ${m.unbackedWeekdaysCount} día(s) laborable(s) sin copia (la póliza exige respaldo de Lunes a Viernes).`);
+      } else {
+        feedback.push('Correcto: de Lunes a Viernes todos los días tienen copia.');
       }
 
       if (m.fridayAfterBackupRTOMinutes > 45) {
@@ -254,7 +267,7 @@ export const EXAM_QUESTIONS: QuizQuestion[] = [
       {
         id: 'opt_c',
         label: 'Hay que leer Lunes (Completa) + Martes (Diff) + Jueves (Diff) + Viernes (Diff).',
-        totalReadGB: '885 GB (4 pasos)',
+        totalReadGB: '785 GB (4 pasos)',
         isCorrect: false,
         explanation:
           'Incorrecto: En una política Diferencial nunca se leen varias diferenciales seguidas; la última Diferencial disponible ya engloba el contenido de todas las diferenciales previas.'

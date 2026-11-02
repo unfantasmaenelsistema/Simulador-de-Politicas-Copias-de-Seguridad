@@ -1,161 +1,120 @@
-<div align="center">
-  <a href="https://www.unfantasmaenelsistema.com/" target="_blank" rel="noopener noreferrer">
-    <img src="./public/assets/aistudio/icono_81a3db5b.png" alt="Logo Un Fantasma en el Sistema" width="120" height="120" />
-  </a>
+<p align="center">
+  <a href="https://www.unfantasmaenelsistema.com"><img src="public/assets/aistudio/icono_81a3db5b.png" width="110" alt="Un fantasma en el sistema"></a>
+</p>
 
-  # Simulador de Políticas de Copias de Seguridad y Estrategia 3-2-1
+<h1 align="center">Simulador de Políticas de Copias de Seguridad</h1>
 
-  **Laboratorio interactivo de planificación de respaldos (Completas, Diferenciales e Incrementales), validación SLA (RTO / RPO), recuperación ante desastres y arquitectura 3-2-1-1-0.**
+<p align="center">
+  <b>Planifica una semana de copias Completas, Diferenciales e Incrementales y comprueba qué pasa el día del desastre</b><br>
+  Espacio y ventana nocturna · Secuencia exacta de restauración · RTO y RPO · Soportes dañados · Regla 3-2-1-1-0 · Retos evaluables
+</p>
 
-  Creado por **[Un Fantasma en el Sistema](https://www.unfantasmaenelsistema.com/)** · Recurso didáctico para Formación Profesional (SMR, ASIR, DAW, DAM), Especialización en Ciberseguridad e Ingeniería Informática.
+<p align="center">
+  <a href="https://unfantasmaenelsistema.github.io/Simulador-de-Politicas-Copias-de-Seguridad/"><b>▶ Abrir el simulador</b></a> ·
+  <a href="#qué-hace">Qué hace</a> ·
+  <a href="#cómo-calcula">Cómo calcula</a> ·
+  <a href="#retos-y-examen">Retos</a> ·
+  <a href="#desarrollo">Desarrollo</a> ·
+  <a href="https://www.unfantasmaenelsistema.com">unfantasmaenelsistema.com</a> ·
+  <a href="LICENSE">MIT</a>
+</p>
 
-  [![Web Oficial](https://img.shields.io/badge/Web-unfantasmaenelsistema.com-0284c7?style=for-the-badge)](https://www.unfantasmaenelsistema.com/)
-  [![React 19](https://img.shields.io/badge/React-19-0f172a?style=for-the-badge&logo=react)](https://react.dev/)
-  [![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178c6?style=for-the-badge&logo=typescript)](https://www.typescriptlang.org/)
-  [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-06b6d4?style=for-the-badge&logo=tailwindcss)](https://tailwindcss.com/)
-  [![GitHub Pages Ready](https://img.shields.io/badge/GitHub_Pages-Ready-059669?style=for-the-badge&logo=github)](https://pages.github.com/)
-</div>
+<p align="center">
+  <img src="https://img.shields.io/badge/navegador-sin_servidor-10b981?style=flat-square" alt="Sin servidor">
+  <img src="https://img.shields.io/badge/datos-100%25_locales-0284c7?style=flat-square" alt="Datos 100 % locales">
+  <img src="https://img.shields.io/badge/retos-3_+_3_preguntas-f59e0b?style=flat-square" alt="3 retos y 3 preguntas de examen">
+  <img src="https://img.shields.io/badge/licencia-MIT-blue?style=flat-square" alt="MIT">
+</p>
 
----
+<p align="center">
+  <img src="docs/capturas/01-planificador.webp" width="900" alt="Planificador semanal con parámetros del servidor, soporte de destino, objetivos de ventana, RTO y RPO, y plantillas de políticas">
+</p>
 
-## 📋 ¿Qué hace esta aplicación?
+Eliges el volumen del servidor, los cambios de cada día, el soporte (NAS, cabina 10 GbE, cinta LTO-8, disco USB o nube) y el tipo de copia de cada noche. El simulador calcula lo que ocupa cada conjunto, cuánto tarda la ventana nocturna y, para cualquier día y hora del desastre, qué soportes hay que cargar y en qué orden, cuánto se tarda en volver a estar en marcha (RTO) y cuántos datos se pierden (RPO).
 
-El **Simulador de Políticas de Copias de Seguridad (Estrategia 3-2-1)** es una herramienta educativa e interactiva que permite a los alumnos y administradores de sistemas diseñar, auditar y poner a prueba estrategias de respaldo reales sin necesidad de infraestructura física:
+## Qué hace
 
-1. **Configurar un calendario semanal (Lunes a Domingo)** combinando copias **Completas (*Full*)**, **Diferenciales (*Differential*)**, **Incrementales (*Incremental*)** o días sin copia.
-2. **Calcular en tiempo real** el espacio consumido en el soporte cada noche, el almacenamiento acumulado semanal y la duración exacta de la ventana de backup según el soporte físico elegido (**NAS 1 GbE**, **Cabina SAN/NAS 10 GbE**, **Librería de Cintas LTO-8**, **Disco USB 3.2 / RDX** o **Repositorio Cloud S3**).
-3. **Validar visualmente los acuerdos de nivel de servicio (SLA)**: muestra alertas automáticas con bordes rojos e iconos de advertencia si el **RTO** (*Recovery Time Objective*), el **RPO** (*Recovery Point Objective*) o la **ventana nocturna** superan los umbrales definidos.
-4. **Simular un desastre en cualquier día y hora** para obtener el *Runbook* paso a paso con el orden cronológico exacto de soportes que deben cargarse y qué copias intermedias se descartan.
-5. **Auditar arquitecturas bajo la regla 3-2-1 y 3-2-1-1-0** sometiéndolas a tres siniestros reales: rotura de RAID en producción, ataque de **Ransomware en red local** e **incendio/inundación en el CPD**.
+- **Planificador semanal** con cuatro plantillas (Completa + Incrementales, Completa + Diferenciales, híbrida y Completa diaria), gráfico de consumo y comparativa automática de las cuatro políticas con tus mismos datos.
+- **Simulador de restauración**: elige el día y si el siniestro llega a mitad de jornada (14:00) o justo después del backup (22:00). Muestra el runbook paso a paso, las copias que se omiten y por qué, y avisa si se superan los objetivos de RTO y RPO.
+- **Soportes dañados**: marca cualquier copia como ilegible y el motor busca el punto más reciente que todavía se puede restaurar sin ella. Con diferenciales, una cinta intermedia dañada no cuesta nada; con incrementales, rompe la cadena desde ese día; con una Completa diaria basta con volver al día anterior.
+- **Arquitectura 3-2-1-1-0**: copias, medios, ubicación e inmutabilidad (WORM o air-gap) frente a tres siniestros: avería del servidor, ransomware con credenciales de dominio e incendio del CPD.
+- **Retos y teoría**: tres retos con corrección automática, tres preguntas de examen con explicación y un cuadro comparativo de los tres tipos de copia.
+- Informe en Markdown para entregar la práctica y modo oscuro.
 
----
+<p align="center">
+  <img src="docs/capturas/02-restauracion-soporte-danado.webp" width="900" alt="Restauración del viernes con la incremental del miércoles dañada: solo se recupera hasta el martes, 72 h de RPO, y el mapa marca el miércoles como dañado y jueves y viernes como inutilizables">
+</p>
 
-## 📸 Capturas de Pantalla de los Módulos
+## Cómo calcula
 
-### 1. Planificador Semanal, Alertas SLA y Gráfico de Progresión (`Recharts`)
-Configura el volumen inicial ($V_0$), el soporte de destino, los objetivos máximos de **RTO / RPO** y el tipo de respaldo de cada día. Incluye visualización interactiva con **`recharts`** (*Escalera Acumulada Apilada* y *Comparativa Agrupada*) y tabla comparativa frente a las políticas canónicas.
+- **Diferencial** = cambios desde la última Completa; **Incremental** = cambios desde la copia anterior, sea del tipo que sea. Es el modelo de catálogo del software actual (Veeam, Bacula, Acronis…). Con el bit de archivo clásico (`xcopy /m`, `robocopy /m`) una Diferencial hecha tras varias Incrementales solo recogería lo cambiado desde la última Incremental; la guía teórica lo explica.
+- **Modo examen clásico**: si el lunes hay Completa, copia exactamente el volumen base y los cambios se acumulan desde el martes. Los otros modos incluyen los cambios del lunes o aplican un factor de compresión y deduplicación.
+- **Tiempo** = GB × 1024 / MB/s del soporte. El tiempo de restauración suma la lectura de cada conjunto y el montaje de cada soporte adicional (3,5 min en cinta, 1 min en disco o nube).
+- **RPO** = tiempo entre el último punto que se puede restaurar y el siniestro. Un día «Sin copia» solo suma pérdida si queda después de ese punto; si después hay una copia, sus cambios ya van dentro.
 
-![Captura del Planificador Semanal y Gráfico Recharts](./public/docs/01-planificador-semanal.svg)
+<p align="center">
+  <img src="docs/capturas/03-arquitectura-321.webp" width="700" alt="Laboratorio 3-2-1 con tres copias, sus medios, ubicaciones e inmutabilidad, y la auditoría frente a avería, ransomware e incendio">
+</p>
 
----
+## Retos y examen
 
-### 2. Simulador de Restauración Paso a Paso y Tolerancia a Soportes Corruptos
-Selecciona el día del fallo y si el incidente ocurre *antes* o *después* de la ventana nocturna de copia. El motor calcula la secuencia exacta de soportes a montar, las copias omitidas por haber sido englobadas en una copia Diferencial o Completa posterior, y permite **simular la rotura física de una cinta o archivo intermedio** para comprobar la fragilidad de las cadenas incrementales frente a las diferenciales.
+| Reto | Condiciones |
+| :-: | :-- |
+| 01 · Cuota en NAS de PyME | Copia los 7 días, Completa el lunes y menos de 780 GB en la semana |
+| 02 · Restauración del viernes | Lunes a viernes con copia, restaurar el viernes en 2 pasos como máximo y menos de 1.150 GB |
+| 03 · Auditoría 3-2-1-1-0 | Arquitectura con copia externa e inmutable, lunes a viernes con copia y restauración del viernes en menos de 45 min |
 
-![Captura del Simulador de Restauración y Alertas SLA RTO/RPO](./public/docs/02-simulador-restauracion.svg)
+Las pruebas automáticas aplican la solución de cada pista y comprueban que aprueba, y también que las soluciones tramposas (dejar laborables sin copia) no lo hacen.
 
----
+<p align="center">
+  <img src="docs/capturas/04-retos-y-teoria.webp" width="700" alt="Retos evaluables con su estado y la verificación de la configuración actual">
+</p>
 
-### 3. Laboratorio de Arquitectura 3-2-1 y Extensión 3-2-1-1-0
-Configura los nodos de tu infraestructura (tecnología de soporte, ubicación física *Onsite/Offsite* y bloqueo de **Inmutabilidad WORM / Air-Gap**) y comprueba en vivo si tus datos sobreviven a un fallo de hardware, un ataque de ransomware con credenciales de dominio o un incendio en la sala de servidores.
+## Privacidad
 
-![Captura del Laboratorio de Estrategia 3-2-1-1-0](./public/docs/03-arquitectura-321.svg)
+Todo se ejecuta en el navegador, sin servidor ni cuentas, y nada se guarda fuera de la pestaña. Las fuentes van incluidas en la web y una política CSP estricta impide cargar código o estilos de terceros.
 
----
+## Desarrollo
 
-### 4. Retos Evaluables de Ingeniería, Supuestos de Examen y Guía Teórica
-Incluye **3 retos prácticos de laboratorio** que evalúan en tiempo real la configuración que el alumno haya diseñado en el planificador, **3 casos prácticos de examen autocorregibles** con explicación razonada, cuadro comparativo teórico y botón para **Exportar Informe Técnico en Markdown (`.md`)** listo para entregar en clase.
-
-![Captura de Retos Evaluables y Supuestos de Examen](./public/docs/04-retos-examen.svg)
-
----
-
-## 🧮 Mecánica Didáctica y Fórmulas del Motor
-
-### Comportamiento del Bit de Archivo (*Archive Bit*) y Tipos de Respaldo
-
-| Tipo de Copia | ¿Qué datos respalda? | Marca de Archivo (*Archive Bit*) | Pasos para Restaurar | Tolerancia a Fallo Intermedio |
-| :--- | :--- | :---: | :---: | :--- |
-| **Completa (*Full*)** | El **100%** de los datos del sistema en ese instante. | Lo pone a `0` (Desmarca) | **1 paso** (Solo la última Completa) | Totalmente independiente de copias anteriores. |
-| **Diferencial** | Todos los cambios acumulados desde la **última Completa**. | **No** lo modifica (Sigue en `1`) | **Máximo 2 pasos** (Última Completa + Última Diferencial) | **Alta:** Si se daña una diferencial previa, la última diferencial ya incluye todos sus datos. |
-| **Incremental** | Solo los cambios generados desde la **última copia de cualquier tipo**. | Lo pone a `0` (Desmarca) | **N pasos** (Última Completa + todas las Incrementales en orden) | **Baja (Frágil):** Si se corrompe un eslabón intermedio, se rompe la cadena desde ese día. |
-
-### Modos de Cálculo Soportados
-- **Modo Examen (Clásico):** Si el Lunes se programa una copia Completa, respalda exactamente el Volumen Base Inicial ($V_0$, p. ej. `500 GB`) y los incrementos diarios comienzan a contarse desde el Martes. Ideal para resolver problemas académicos en pizarra o examen.
-- **Modo Acumulativo desde Día 1:** Considera que la copia del Lunes a las 22:00h ya incluye el volumen base más los datos generados durante la jornada del propio Lunes ($V_0 + \Delta_{\text{Lunes}}$).
-- **Modo Ingeniería con Compresión / Deduplicación:** Permite aplicar un factor de reducción ajustable ($0.4\times\text{ a }1.0\times$) sobre el volumen bruto de cada conjunto.
-
-### Fórmulas de Tiempo y SLA
-- **Tiempo de Ventana de Copia / Lectura:**
-  $$\text{Tiempo (min)} = \frac{\text{Volumen (GB)} \times 1024}{\text{Velocidad del Soporte (MB/s)} \times 60}$$
-- **RTO (*Recovery Time Objective*):**
-  $$\text{RTO} = \sum_{i=1}^{k} \text{Tiempo de Lectura}(\text{Paso}_i) + (k - 1) \times T_{\text{montaje}}$$
-- **RPO (*Recovery Point Objective*):**
-  $$\text{RPO} = t_{\text{desastre}} - t_{\text{último backup válido}}$$
-
----
-
-## 🚀 Instalación y Ejecución en Local
-
-Requisitos previos: **Node.js 18+** y **npm**.
+Requisitos: Node.js 20 o superior.
 
 ```bash
-# 1. Clonar el repositorio
-git clone https://github.com/TU_USUARIO/simulador-politicas-backup-321.git
-cd simulador-politicas-backup-321
-
-# 2. Instalar dependencias
-npm install
-
-# 3. Iniciar el servidor de desarrollo (puerto 3000)
-npm run dev
+git clone https://github.com/unfantasmaenelsistema/Simulador-de-Politicas-Copias-de-Seguridad.git
+cd Simulador-de-Politicas-Copias-de-Seguridad
+npm ci
+npm run dev      # http://localhost:3000
+npm test         # pruebas del motor y de los retos (Vitest)
+npm run lint     # comprobación de tipos
+npm run build    # versión estática en dist/
 ```
 
-Para generar la compilación estática de producción (carpeta `dist/`):
-
-```bash
-npm run build
-```
-
----
-
-## 🌐 Despliegue Automático en GitHub Pages
-
-El proyecto ya está configurado con rutas relativas (`base: './'` en `vite.config.ts`) y cuenta con el flujo de trabajo de GitHub Actions en `.github/workflows/deploy.yml`.
-
-Para publicarlo gratis en **GitHub Pages**:
-
-1. Sube este repositorio a tu cuenta de GitHub (rama `main` o `master`).
-2. En tu repositorio de GitHub, ve a **Settings → Pages**.
-3. En la sección **Build and deployment → Source**, selecciona **GitHub Actions**.
-4. Al hacer `git push`, la acción **Deploy to GitHub Pages** compilará automáticamente la aplicación y la publicará en `https://TU_USUARIO.github.io/NOMBRE_DEL_REPO/`.
-
----
-
-## 📁 Estructura del Proyecto
+El workflow `.github/workflows/deploy.yml` comprueba tipos, pasa las pruebas, compila y publica `dist/` en GitHub Pages en cada push a `main`.
 
 ```text
-├── .github/workflows/
-│   └── deploy.yml                      # Workflow de despliegue automático en GitHub Pages
-├── public/
-│   ├── assets/aistudio/
-│   │   └── icono_81a3db5b.png          # Logo oficial de Un Fantasma en el Sistema
-│   └── docs/                           # Capturas de pantalla vectoriales para el README
-│       ├── 01-planificador-semanal.svg
-│       ├── 02-simulador-restauracion.svg
-│       ├── 03-arquitectura-321.svg
-│       └── 04-retos-examen.svg
-├── src/
-│   ├── components/
-│   │   ├── WeeklyPlannerView.tsx       # Planificador de 7 días, alertas SLA y gráfico Recharts
-│   │   ├── RestorationSimulatorView.tsx# Simulador de desastres, RTO/RPO y cadenas de restauración
-│   │   ├── Strategy321View.tsx         # Laboratorio interactivo de arquitectura 3-2-1-1-0
-│   │   └── ChallengesAndGuideView.tsx  # Retos evaluables en vivo, test de examen y teoría
-│   ├── data/
-│   │   ├── backupEngine.ts             # Motor matemático de cálculo de copias y restauración
-│   │   └── challengesData.ts           # Definición de retos prácticos y supuestos de examen
-│   ├── App.tsx                         # Componente raíz, navegación y exportación de informes (.md)
-│   ├── index.css                       # Configuración de Tailwind CSS v4 y fuentes técnicas
-│   └── main.tsx                        # Punto de entrada de React
-├── index.html
-├── package.json
-├── tsconfig.json
-└── vite.config.ts                      # Configuración con base: './' para GitHub Pages
+src/
+├── data/backupEngine.ts       # tamaños, ventanas, cadenas de restauración, RTO/RPO y 3-2-1
+├── data/challengesData.ts     # retos y preguntas de examen
+├── data/backupEngine.test.ts  # pruebas (Vitest)
+└── components/                # planificador, restauración, 3-2-1 y retos
 ```
 
----
+## Cambios
 
-## 👤 Autoría y Recursos Educativos
+### 2.0.0 (2026-11-02)
 
-Desarrollado para **[Un Fantasma en el Sistema](https://www.unfantasmaenelsistema.com/)**.
-Visita **[https://www.unfantasmaenelsistema.com/](https://www.unfantasmaenelsistema.com/)** para más simuladores, laboratorios prácticos y apuntes de Administración de Sistemas, Redes y Ciberseguridad.
+- Publicado en la organización con el nombre `Simulador-de-Politicas-Copias-de-Seguridad` (antes `Simulador-Pol-ticas-Copias-Seguridad`; la dirección antigua redirige). El workflow original no podía funcionar: `npm install` fallaba por un conflicto de versiones de `esbuild`.
+- **Soportes dañados**: el motor solo marcaba el paso como corrupto y seguía sumando la cadena completa. Con una Completa dañada daba siempre pérdida total, aunque hubiera otra Completa anterior: con la política de Completa diaria, perder el jueves no permitía restaurar el miércoles. Ahora busca el punto más reciente cuya cadena no necesita el soporte dañado y calcula el RPO desde ahí.
+- **RPO**: las 16 h del lunes estaban fijas en el código, y cualquier día «Sin copia» anterior al siniestro se marcaba con +24 h aunque sus cambios ya estuvieran en una copia posterior. Cuando no había nada que restaurar se mostraban «999 h»; ahora pone «pérdida total».
+- **Retos**: el 02 y el 03 exigían copia de lunes a viernes, pero no lo comprobaban. En el examen, la opción de cuatro pasos del caso 2 sumaba 885 GB; son 785.
+- **Teoría**: las fórmulas hablaban del bit de archivo mientras el motor usa el modelo de catálogo, y con el bit de archivo la política híbrida no funciona igual. Ahora se explica la diferencia, y se distingue el RTO y el RPO (objetivos) del tiempo y la pérdida calculados.
+- **Interfaz**: la cabecera, el selector de soporte, los grupos de botones y la rejilla de días desbordaban en móvil; los botones «Incremental» se recortaban en escritorio. Fuentes incluidas en la web en lugar de Google Fonts, CSP estricta, capturas reales en lugar de dibujos SVG, fuera dependencias de Gemini y Express que no se usaban, y 24 pruebas automáticas.
+
+### 1.0.0
+
+- Versión inicial generada con Google AI Studio.
+
+## Créditos y licencia
+
+Creado por **[Un Fantasma en el Sistema](https://www.unfantasmaenelsistema.com)** para los módulos de seguridad informática y administración de sistemas de FP. Gráficos con Recharts (MIT); fuentes Plus Jakarta Sans e IBM Plex Mono (SIL Open Font License) vía Fontsource; iconos de Lucide (ISC).
+
+Código bajo licencia [MIT](LICENSE).
