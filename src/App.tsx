@@ -11,6 +11,7 @@ import {
   computeRestorationPlan,
   computeWeeklySchedule,
   evaluate321Architecture,
+  formatRpoHours,
   getBackupTypeLabel,
 } from './data/backupEngine';
 import { LabChallenge } from './data/challengesData';
@@ -58,7 +59,12 @@ export default function App() {
   const [disasterTiming, setDisasterTiming] = useState<'before_backup' | 'after_backup'>(
     'after_backup'
   );
-  const [corruptedDayId, setCorruptedDayId] = useState<DayId | null>(null);
+  const [corruptedSelection, setCorruptedDayId] = useState<DayId | null>(null);
+  // Un día que pasa a «Sin copia» ya no tiene soporte que pueda estar dañado
+  const corruptedDayId =
+    corruptedSelection && days.find((d) => d.id === corruptedSelection)?.backupType !== 'none'
+      ? corruptedSelection
+      : null;
 
   // Estado de los nodos de arquitectura 3-2-1
   const [nodes321, setNodes321] = useState<CopyNode321[]>(INITIAL_321_NODES);
@@ -287,7 +293,8 @@ export default function App() {
       }`,
       `- **Volumen Total a Leer:** ${restorationPlan.totalVolumeToReadGB} GB en ${restorationPlan.setsRequiredCount} paso(s)`,
       `- **Tiempo Total Estimado de Restauración (RTO):** ${restorationPlan.totalRestoreTimeMinutes} min`,
-      `- **Pérdida de Datos Estimada (RPO):** ${restorationPlan.rpoDataLostGB} GB (~${restorationPlan.rpoHoursLost} h)`,
+      `- **Pérdida de Datos Estimada (RPO):** ${restorationPlan.rpoDataLostGB} GB (${formatRpoHours(restorationPlan.rpoHoursLost)})`,
+      ...(corruptedDayId ? [`- **Soporte dañado simulado:** ${restorationPlan.corruptedDayId}`] : []),
       '',
       '### Pasos Exactos de Restauración:',
       ...restorationPlan.steps.map(
@@ -327,6 +334,7 @@ export default function App() {
       fridayAfterBackupRTOMinutes: fridayAfterBackupPlan.totalRestoreTimeMinutes,
       hasFullOnMonday: days[0]?.backupType === 'full',
       unbackedDaysCount: days.filter((d) => d.backupType === 'none').length,
+      unbackedWeekdaysCount: days.slice(0, 5).filter((d) => d.backupType === 'none').length,
       is32110Compliant: validation321.is32110Compliant,
     }),
     [computedDays, fridayAfterBackupPlan, days, validation321]
@@ -335,19 +343,19 @@ export default function App() {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors">
       {/* Top Bar Contract: 3 zonas separadas por gap-8 */}
-      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-6 py-3.5 flex items-center justify-between gap-8">
+      <header className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur border-b border-slate-200 dark:border-slate-800 px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 lg:gap-8">
         {/* Zona 1: Brand Title en 1 línea */}
         <a
           href="https://www.unfantasmaenelsistema.com/"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-base font-bold tracking-tight text-slate-900 dark:text-white whitespace-nowrap shrink-0 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
+          className="text-base font-bold tracking-tight text-slate-900 dark:text-white truncate min-w-0 hover:text-sky-600 dark:hover:text-sky-400 transition-colors"
         >
           Un Fantasma en el Sistema
         </a>
 
         {/* Zona 2: 4 enlaces de navegación concisos en 1 línea */}
-        <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
+        <nav className="hidden lg:flex items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300">
           <button
             type="button"
             onClick={() => setActiveTab('planner')}
@@ -395,7 +403,7 @@ export default function App() {
         </nav>
 
         {/* Zona 3: 1 acción primaria */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="hidden sm:flex items-center gap-3 shrink-0">
           <a
             href="https://www.unfantasmaenelsistema.com/"
             target="_blank"
@@ -599,7 +607,7 @@ export default function App() {
                 <AlertTriangle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
               )}
               <span>
-                RPO: {restorationPlan.rpoHoursLost}h / {params.targetRPOHours}h
+                RPO: {formatRpoHours(restorationPlan.rpoHoursLost)} / {params.targetRPOHours} h
               </span>
             </button>
           </div>
@@ -697,7 +705,7 @@ export default function App() {
             <span aria-hidden="true">·</span>
             <span>Estrategia 3-2-1-1-0</span>
             <span aria-hidden="true">·</span>
-            <span>Listo para GitHub Pages</span>
+            <span>Código abierto (MIT)</span>
           </div>
         </div>
       </footer>

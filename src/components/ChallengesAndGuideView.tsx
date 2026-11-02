@@ -19,6 +19,7 @@ interface ChallengesAndGuideViewProps {
     fridayAfterBackupRTOMinutes: number;
     hasFullOnMonday: boolean;
     unbackedDaysCount: number;
+    unbackedWeekdaysCount: number;
     is32110Compliant: boolean;
   };
   onLoadChallengeSetup: (challenge: LabChallenge) => void;
@@ -327,13 +328,25 @@ export const ChallengesAndGuideView: React.FC<ChallengesAndGuideViewProps> = ({
                 </td>
               </tr>
               <tr>
+                <td className="py-3 pr-4 font-semibold">Ojo al mezclar tipos</td>
+                <td className="py-3 px-4" colSpan={3}>
+                  Con el bit de archivo clásico (NTBackup, <code className="font-mono">xcopy /m</code>,{' '}
+                  <code className="font-mono">robocopy /m</code>) una Diferencial hecha tras
+                  varias Incrementales solo recoge lo cambiado desde la última Incremental, porque
+                  estas ya desmarcaron el bit. Este simulador sigue el modelo de catálogo del
+                  software actual (Veeam, Bacula, Acronis…): la Diferencial parte siempre de la
+                  última Completa y la Incremental de la copia anterior, sea del tipo que sea.
+                </td>
+              </tr>
+              <tr>
                 <td className="py-3 pr-4 font-semibold">Tiempo de Copia (Ventana)</td>
                 <td className="py-3 px-4">Muy lento (requiere ventana amplia).</td>
                 <td className="py-3 px-4">
                   Moderado (rápido al principio, crece cada día que pasa desde la Completa).
                 </td>
                 <td className="py-3 pl-4">
-                  Muy rápido (solo escribe el diferencial neto de las últimas 24h).
+                  Muy rápido (solo los cambios desde la copia anterior, normalmente las últimas
+                  24 h).
                 </td>
               </tr>
               <tr>
@@ -397,11 +410,11 @@ export const ChallengesAndGuideView: React.FC<ChallengesAndGuideViewProps> = ({
               <span>RTO (Recovery Time Objective)</span>
             </div>
             <p className="mt-2 font-mono text-xs text-sky-700 dark:text-sky-400">
-              RTO = Σ (Lectura de cada paso) + T_montaje
+              T_restauración = Σ (Lectura de cada paso) + T_montaje ≤ RTO
             </p>
             <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-              Tiempo máximo tolerable que el negocio puede permanecer caído desde que ocurre el
-              desastre hasta que el servicio vuelve a estar operativo.
+              El RTO es el objetivo: tiempo máximo tolerable que el negocio puede permanecer caído.
+              El simulador calcula el tiempo real de restauración y lo compara con él.
             </p>
           </div>
 
@@ -411,11 +424,12 @@ export const ChallengesAndGuideView: React.FC<ChallengesAndGuideViewProps> = ({
               <span>RPO (Recovery Point Objective)</span>
             </div>
             <p className="mt-2 font-mono text-xs text-sky-700 dark:text-sky-400">
-              RPO = t_desastre − t_último_backup_válido
+              Pérdida = t_desastre − t_último_punto_restaurable ≤ RPO
             </p>
             <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-              Cantidad máxima de datos (medida en tiempo hacia atrás, ej. 24h o 15 min) que la
-              organización asume perder tras restaurar.
+              El RPO es la cantidad máxima de datos (medida en tiempo hacia atrás, ej. 24 h o 15
+              min) que la organización asume perder. Si un soporte está dañado, el último punto
+              restaurable puede ser bastante anterior a la última copia.
             </p>
           </div>
         </div>

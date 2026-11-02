@@ -1,48 +1,66 @@
-name: Deploy to GitHub Pages
+name: Pruebas y despliegue en GitHub Pages
 
 on:
   push:
-    branches: ['main', 'master']
+    branches: ["main"]
+  pull_request:
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: 'pages'
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout del repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Comprobar tipos
+        run: npm run lint
+
+      - name: Pruebas del motor de copias
+        run: npm test
+
+      - name: Compilar aplicación (Vite)
+        run: npm run build
+
+      - name: Comprobar que la build no carga recursos externos
+        run: |
+          if grep -rEo 'https?://(fonts\.googleapis|fonts\.gstatic|cdn\.|unpkg|esm\.sh)[^"'"'"' )]*' dist; then
+            echo "La build referencia recursos externos" && exit 1
+          fi
+
+      - name: Subir artefacto de Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build static site
-        run: npm run build
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './dist'
-
-      - name: Deploy to GitHub Pages
+      - name: Desplegar en GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

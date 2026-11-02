@@ -2,5 +2,5 @@
   "name": "Simulador de Políticas de Copias de Seguridad (Estrategia 3-2-1)",
   "description": "Simulador interactivo y laboratorio didáctico de planificación de copias de seguridad (Completas, Diferenciales e Incrementales), cálculo de RTO/RPO, restauración ante desastres y arquitectura 3-2-1 por Un Fantasma en el Sistema.",
   "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "majorCapabilities": []
 }

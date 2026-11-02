@@ -74,6 +74,8 @@ export interface DiscardedBackupInfo {
   dayName: string;
   backupType: BackupType;
   sizeGB: number;
+  /** Etiqueta corta para el mapa semanal (Superada, Englobada, Dañado, Inutilizable). */
+  shortReason: string;
   discardReason: string;
 }
 
@@ -90,10 +92,12 @@ export interface RestorationPlan {
   totalVolumeToReadGB: number;
   totalRestoreTimeMinutes: number; // RTO real
   meetsRTOSLA: boolean;
-  rpoHoursLost: number; // Horas de datos perdidos
+  rpoHoursLost: number; // Horas de datos perdidos (Infinity si no se puede restaurar nada)
   rpoDataLostGB: number; // GB de trabajo perdido no respaldado
   meetsRPOSLA: boolean;
   setsRequiredCount: number;
+  /** Día cuyo estado se recupera (-1 = Completa del domingo anterior); null si no hay ninguno. */
+  restorePointIndex: number | null;
   pedagogicalSummary: string;
 }
 
@@ -321,9 +325,9 @@ export function computeWeeklySchedule(
     if (day.backupType === 'full') {
       rawBackupSizeGB = systemTotalVolumeGB;
       if (isInauguralMondayFull) {
-        formulaExplanation = `Base inicial del sistema (${params.baseVolumeGB} GB). Reinicia marcas de archivo.`;
+        formulaExplanation = `Base inicial del sistema (${params.baseVolumeGB} GB). Nuevo punto de partida de diferenciales e incrementales.`;
       } else {
-        formulaExplanation = `Base (${params.baseVolumeGB} GB) + cambios acumulados hasta ${day.name} (${systemTotalVolumeGB - params.baseVolumeGB} GB) = ${rawBackupSizeGB} GB.`;
+        formulaExplanation = `Base (${params.baseVolumeGB} GB) + cambios acumulados hasta ${day.name} (${Number((systemTotalVolumeGB - params.baseVolumeGB).toFixed(1))} GB) = ${rawBackupSizeGB} GB. Nuevo punto de partida.`;
       }
       referenceAnchorLabel = '100% del sistema (Nuevo punto base)';
       hasAnyFullBackupSoFar = true;
@@ -337,8 +341,9 @@ export function computeWeeklySchedule(
       }
       rawBackupSizeGB = changesSinceLastFullGB;
       referenceAnchorLabel = `Cambios acumulados desde Completa (${lastFullDayName})`;
-      formulaExplanation = `Suma todos los cambios desde la última Completa (${lastFullDayName}): ${rawBackupSizeGB} GB. No borra marca para futuras diferenciales.`;
-      // En sistemas combinados (Full + Diff + Inc), una copia Diferencial sirve de punto de apoyo para una Incremental posterior
+      formulaExplanation = `Suma todos los cambios desde la última Completa (${lastFullDayName}): ${rawBackupSizeGB} GB. La siguiente diferencial volverá a incluirlos.`;
+      // Modelo de catálogo (Veeam, Bacula…): la incremental siguiente parte de esta diferencial.
+      // Con el bit de archivo clásico no sería así: la diferencial no lo desmarca.
       changesSinceLastAnyBackupGB = 0;
     } else if (day.backupType === 'incremental') {
       if (!hasAnyFullBackupSoFar) {
@@ -347,7 +352,7 @@ export function computeWeeklySchedule(
       rawBackupSizeGB = changesSinceLastAnyBackupGB;
       const prevBackupDay = findPreviousBackupDayLabel(days, i, params.hasPreviousSundayFull);
       referenceAnchorLabel = `Cambios desde última copia (${prevBackupDay})`;
-      formulaExplanation = `Solo datos modificados desde la copia anterior (${prevBackupDay}): ${rawBackupSizeGB} GB. Limpia marca de archivo.`;
+      formulaExplanation = `Solo datos modificados desde la copia anterior (${prevBackupDay}): ${rawBackupSizeGB} GB.`;
       changesSinceLastAnyBackupGB = 0;
     } else {
       // 'none'
@@ -417,6 +422,47 @@ export function getBackupTypeLabel(type: BackupType): string {
   }
 }
 
+/** Hora del siniestro «a mitad de jornada», antes de la ventana de backup. */
+export const DISASTER_HOUR_BEFORE_BACKUP = 14;
+
+/** Índice de la copia anterior a `j` (de cualquier tipo); -1 si no hay ninguna esta semana. */
+function previousBackupIndex(days: ComputedDayResult[], j: number): number {
+  for (let k = j - 1; k >= 0; k--) {
+    if (days[k].backupType !== 'none') return k;
+  }
+  return -1;
+}
+
+/**
+ * Conjuntos necesarios para restaurar el estado de la copia del día `j`, del primero al
+ * último. -1 representa la Completa del domingo anterior. null si la cadena no tiene base.
+ * Modelo de catálogo (Veeam, Bacula, Acronis…): la diferencial parte de la última Completa
+ * y la incremental de la copia anterior, sea del tipo que sea.
+ */
+export function restoreChainFor(
+  days: ComputedDayResult[],
+  j: number,
+  hasPreviousSundayFull: boolean
+): number[] | null {
+  if (j < 0) return hasPreviousSundayFull ? [-1] : null;
+  const type = days[j].backupType;
+  if (type === 'none') return null;
+  if (type === 'full') return [j];
+  if (type === 'differential') {
+    for (let k = j - 1; k >= 0; k--) {
+      if (days[k].backupType === 'full') return [k, j];
+    }
+    return hasPreviousSundayFull ? [-1, j] : null;
+  }
+  const previous = restoreChainFor(days, previousBackupIndex(days, j), hasPreviousSundayFull);
+  return previous ? [...previous, j] : null;
+}
+
+/** «16 h» o «pérdida total» cuando no hay nada que restaurar. */
+export function formatRpoHours(hours: number): string {
+  return Number.isFinite(hours) ? `${hours} h` : 'pérdida total';
+}
+
 export function computeRestorationPlan(
   computedDays: ComputedDayResult[],
   params: SimulationParams,
@@ -427,341 +473,214 @@ export function computeRestorationPlan(
 ): RestorationPlan {
   const disasterIndex = computedDays.findIndex((d) => d.id === disasterDayId);
   const disasterDay = computedDays[disasterIndex];
-
-  // Determinar hasta qué día (inclusive) tenemos copias ejecutadas antes del desastre
   const lastAvailableDayIndex =
     disasterTiming === 'after_backup' ? disasterIndex : disasterIndex - 1;
+  const corruptedIndex = corruptedDayId
+    ? computedDays.findIndex((d) => d.id === corruptedDayId)
+    : -2;
+  const hasPrev = params.hasPreviousSundayFull;
+  const factor = params.calculationMode === 'production_compressed' ? params.compressionRatio : 1;
+  const prevSundaySizeGB = Number((params.baseVolumeGB * factor).toFixed(1));
+  const readMinutes = (gb: number) => Number(((gb * 1024) / medium.readSpeedMBps / 60).toFixed(1));
+  const nameOf = (i: number) => (i < 0 ? 'Domingo anterior' : computedDays[i].name);
 
-  const steps: RestorationStep[] = [];
-  const discardedBackups: DiscardedBackupInfo[] = [];
-
-  // Caso 1: El desastre ocurre el Lunes antes del backup nocturno
-  if (lastAvailableDayIndex < 0) {
-    if (params.hasPreviousSundayFull) {
-      const baseSize =
-        params.calculationMode === 'production_compressed'
-          ? Number((params.baseVolumeGB * params.compressionRatio).toFixed(1))
-          : params.baseVolumeGB;
-      const readMin = Number(((baseSize * 1024) / medium.readSpeedMBps / 60).toFixed(1));
-      steps.push({
-        stepNumber: 1,
-        dayId: 'prev_dom',
-        dayName: 'Domingo Anterior (Base)',
-        backupType: 'full',
-        sizeToReadGB: baseSize,
-        readDurationMinutes: readMin,
-        reason: 'Última copia Completa disponible antes del incidente del Lunes por la mañana.',
-        dataCoveredDescription: `Restaura el volumen base inicial (${params.baseVolumeGB} GB).`,
-      });
-      const rpoHours = 16; // Desde el domingo 22:00 hasta lunes 14:00
-      const rpoDataLostGB = disasterDay.dailyChangeGB;
-      return {
-        disasterDayId,
-        disasterDayName: disasterDay.name,
-        disasterTiming,
-        corruptedDayId,
-        isRecoverable: true,
-        isPartialDueToCorruption: false,
-        steps,
-        discardedBackups: [],
-        totalVolumeToReadGB: baseSize,
-        totalRestoreTimeMinutes: readMin,
-        meetsRTOSLA: readMin <= params.targetRTOMinutes,
-        rpoHoursLost: rpoHours,
-        rpoDataLostGB,
-        meetsRPOSLA: rpoHours <= params.targetRPOHours,
-        setsRequiredCount: 1,
-        pedagogicalSummary:
-          'Como el fallo ocurrió el Lunes antes de la ventana de backup nocturna, se restaura la Copia Completa del Domingo anterior. Se pierden únicamente los cambios generados durante la mañana del Lunes.',
-      };
-    } else {
-      return {
-        disasterDayId,
-        disasterDayName: disasterDay.name,
-        disasterTiming,
-        corruptedDayId,
-        isRecoverable: false,
-        isPartialDueToCorruption: false,
-        failureReason:
-          'El desastre ocurrió el Lunes antes de ejecutarse el primer backup semanal y no existe Copia Completa del Domingo anterior.',
-        steps: [],
-        discardedBackups: [],
-        totalVolumeToReadGB: 0,
-        totalRestoreTimeMinutes: 0,
-        meetsRTOSLA: false,
-        rpoHoursLost: 999,
-        rpoDataLostGB: params.baseVolumeGB + disasterDay.dailyChangeGB,
-        meetsRPOSLA: false,
-        setsRequiredCount: 0,
-        pedagogicalSummary:
-          'Pérdida total: No existe ningún respaldo previo al momento del incidente.',
-      };
-    }
-  }
-
-  // Buscar la última copia Completa en o antes de lastAvailableDayIndex
-  let lastFullIndex = -1;
+  // Puntos de restauración posibles, del más reciente al más antiguo
+  const candidates: number[] = [];
   for (let i = lastAvailableDayIndex; i >= 0; i--) {
-    if (computedDays[i].backupType === 'full') {
-      lastFullIndex = i;
+    if (computedDays[i].backupType !== 'none') candidates.push(i);
+  }
+  candidates.push(-1);
+
+  let ideal: { point: number; chain: number[] } | null = null;
+  let chosen: { point: number; chain: number[] } | null = null;
+  for (const point of candidates) {
+    const chain = restoreChainFor(computedDays, point, hasPrev);
+    if (!chain) continue;
+    if (!ideal) ideal = { point, chain };
+    if (!chain.includes(corruptedIndex)) {
+      chosen = { point, chain };
       break;
     }
   }
 
-  // Las copias anteriores a lastFullIndex se descartan porque la nueva Completa ya las engloba
-  if (lastFullIndex > 0) {
-    for (let i = 0; i < lastFullIndex; i++) {
-      if (computedDays[i].backupType !== 'none') {
-        discardedBackups.push({
-          dayId: computedDays[i].id,
-          dayName: computedDays[i].name,
-          backupType: computedDays[i].backupType,
-          sizeGB: computedDays[i].storedBackupSizeGB,
-          discardReason: `Superada por la Copia Completa posterior del ${computedDays[lastFullIndex].name}, que ya incluye todos los datos hasta esa fecha.`,
-        });
-      }
-    }
-  }
+  // Momento del siniestro y de cada punto de restauración en horas desde el lunes 00:00
+  const disasterHour =
+    disasterIndex * 24 +
+    (disasterTiming === 'before_backup' ? DISASTER_HOUR_BEFORE_BACKUP : params.backupHour);
+  const pointHour = (i: number) => i * 24 + params.backupHour;
 
-  // Si no hay Completa en la semana actual pero tampoco en el Domingo anterior -> Fallo de planificación
-  if (lastFullIndex === -1 && !params.hasPreviousSundayFull) {
+  const base = {
+    disasterDayId,
+    disasterDayName: disasterDay.name,
+    disasterTiming,
+    corruptedDayId,
+  };
+
+  if (!ideal || !chosen) {
+    const noBase = !ideal;
+    const corruptName = corruptedIndex >= 0 ? computedDays[corruptedIndex].name : '';
     return {
-      disasterDayId,
-      disasterDayName: disasterDay.name,
-      disasterTiming,
-      corruptedDayId,
+      ...base,
       isRecoverable: false,
-      isPartialDueToCorruption: false,
-      failureReason:
-        'No existe ninguna Copia Completa (Full) como base de la cadena. Las copias diferenciales o incrementales por sí solas no contienen el sistema base original.',
+      isPartialDueToCorruption: !noBase,
+      failureReason: noBase
+        ? lastAvailableDayIndex < 0
+          ? 'El siniestro ocurre antes de la primera copia de la semana y no existe la Completa del domingo anterior.'
+          : 'No existe ninguna Copia Completa como base de la cadena. Las diferenciales e incrementales por sí solas no contienen el sistema base.'
+        : `El soporte dañado del ${corruptName} es imprescindible en todas las cadenas disponibles y no queda ninguna Completa anterior utilizable.`,
       steps: [],
       discardedBackups: [],
       totalVolumeToReadGB: 0,
       totalRestoreTimeMinutes: 0,
       meetsRTOSLA: false,
-      rpoHoursLost: 999,
+      rpoHoursLost: Number.POSITIVE_INFINITY,
       rpoDataLostGB: disasterDay.systemTotalVolumeGB,
       meetsRPOSLA: false,
       setsRequiredCount: 0,
-      pedagogicalSummary:
-        'Error crítico de diseño: Toda política de respaldos requiere al menos una Copia Completa inicial sobre la cual aplicar los conjuntos diferenciales o incrementales.',
+      restorePointIndex: null,
+      pedagogicalSummary: noBase
+        ? 'Error crítico de diseño: toda política necesita al menos una Copia Completa sobre la que aplicar diferenciales e incrementales.'
+        : `FALLO CRÍTICO DE RESTAURACIÓN: sin el soporte del ${corruptName} no se puede reconstruir ningún estado del sistema. Una segunda copia (regla 3-2-1) o una Completa más reciente habrían evitado la pérdida total.`,
     };
   }
 
-  // Paso 1: Añadir la Copia Completa ancla
-  if (lastFullIndex >= 0) {
-    const fullDay = computedDays[lastFullIndex];
-    const readMin = Number(
-      ((fullDay.storedBackupSizeGB * 1024) / medium.readSpeedMBps / 60).toFixed(1)
-    );
-    steps.push({
-      stepNumber: 1,
-      dayId: fullDay.id,
-      dayName: fullDay.name,
-      backupType: 'full',
-      sizeToReadGB: fullDay.storedBackupSizeGB,
-      readDurationMinutes: readMin,
-      reason: `Última Copia Completa anterior al desastre. Restaura el 100% del estado del sistema hasta el ${fullDay.name}.`,
-      dataCoveredDescription: `Datos base + acumulados hasta ${fullDay.name} (${fullDay.rawBackupSizeGB} GB lógicos).`,
-      isCorrupted: corruptedDayId === fullDay.id,
-    });
-  } else {
-    // Usa la Completa del Domingo Anterior
-    const baseSize =
-      params.calculationMode === 'production_compressed'
-        ? Number((params.baseVolumeGB * params.compressionRatio).toFixed(1))
-        : params.baseVolumeGB;
-    const readMin = Number(((baseSize * 1024) / medium.readSpeedMBps / 60).toFixed(1));
-    steps.push({
-      stepNumber: 1,
-      dayId: 'prev_dom',
-      dayName: 'Domingo Anterior (Base)',
-      backupType: 'full',
-      sizeToReadGB: baseSize,
-      readDurationMinutes: readMin,
-      reason: 'Copia Completa base del cierre de la semana anterior.',
-      dataCoveredDescription: `Volumen inicial del sistema (${params.baseVolumeGB} GB).`,
+  const { point, chain } = chosen;
+  const isPartialDueToCorruption = point !== ideal.point;
+
+  const steps: RestorationStep[] = chain.map((idx, n) => {
+    if (idx < 0) {
+      return {
+        stepNumber: n + 1,
+        dayId: 'prev_dom',
+        dayName: 'Domingo anterior (base)',
+        backupType: 'full',
+        sizeToReadGB: prevSundaySizeGB,
+        readDurationMinutes: readMinutes(prevSundaySizeGB),
+        reason: 'Completa del cierre de la semana anterior: base de toda la cadena.',
+        dataCoveredDescription: `Volumen inicial del sistema (${params.baseVolumeGB} GB).`,
+        isCorrupted: false,
+      };
+    }
+    const day = computedDays[idx];
+    const prevName = n > 0 ? nameOf(chain[n - 1]) : '';
+    const reason =
+      day.backupType === 'full'
+        ? `Última Copia Completa utilizable. Restaura el 100 % del sistema tal como estaba el ${day.name}.`
+        : day.backupType === 'differential'
+        ? `Diferencial: aplica de golpe todos los cambios desde la Completa (${prevName}) hasta el ${day.name}.`
+        : `Eslabón obligatorio de la cadena incremental: cambios desde la copia del ${prevName}. Debe aplicarse en este orden.`;
+    return {
+      stepNumber: n + 1,
+      dayId: day.id,
+      dayName: day.name,
+      backupType: day.backupType,
+      sizeToReadGB: day.storedBackupSizeGB,
+      readDurationMinutes: readMinutes(day.storedBackupSizeGB),
+      reason,
+      dataCoveredDescription:
+        day.backupType === 'full'
+          ? `Datos base + acumulados hasta ${day.name} (${day.rawBackupSizeGB} GB lógicos).`
+          : day.backupType === 'differential'
+          ? `Cambios acumulados hasta ${day.name} (${day.rawBackupSizeGB} GB lógicos).`
+          : `Cambios del ${day.name} (${day.rawBackupSizeGB} GB lógicos).`,
       isCorrupted: false,
+    };
+  });
+
+  const baseFullIndex = chain[0];
+  const corruptName = corruptedIndex >= 0 ? computedDays[corruptedIndex].name : '';
+  const discardedBackups: DiscardedBackupInfo[] = [];
+  for (let i = 0; i <= lastAvailableDayIndex; i++) {
+    const day = computedDays[i];
+    if (day.backupType === 'none' || chain.includes(i)) continue;
+    let shortReason: string;
+    let discardReason: string;
+    if (i === corruptedIndex && ideal.chain.includes(i)) {
+      shortReason = 'Dañado';
+      discardReason = 'Soporte dañado e ilegible: no se puede leer, así que se busca otra cadena.';
+    } else if (i > point) {
+      shortReason = 'Inutilizable';
+      discardReason = `Posterior al punto de restauración: su cadena necesita el soporte dañado del ${corruptName}.`;
+    } else if (i < baseFullIndex) {
+      shortReason = 'Superada';
+      discardReason = `Superada por la Copia Completa del ${nameOf(baseFullIndex)}, que ya incluye todos los datos hasta esa fecha.`;
+    } else {
+      const diff = chain.find((c) => c > i && c >= 0 && computedDays[c].backupType === 'differential');
+      shortReason = 'Englobada';
+      discardReason =
+        diff !== undefined
+          ? `Innecesaria: la Diferencial del ${computedDays[diff].name} ya acumula todos los cambios desde la Completa del ${nameOf(baseFullIndex)}.`
+          : 'Innecesaria: una copia posterior de la cadena ya contiene sus datos.';
+    }
+    if (i === corruptedIndex && !ideal.chain.includes(i)) {
+      discardReason += ' Está dañada, pero no hace falta leerla.';
+    }
+    discardedBackups.push({
+      dayId: day.id,
+      dayName: day.name,
+      backupType: day.backupType,
+      sizeGB: day.storedBackupSizeGB,
+      shortReason,
+      discardReason,
     });
   }
 
-  // Ahora analizamos el tramo después de lastFullIndex hasta lastAvailableDayIndex
-  // Buscamos si existe alguna copia DIFERENCIAL en el rango (lastFullIndex + 1 .. lastAvailableDayIndex)
-  let latestDiffIndex = -1;
-  for (let i = lastAvailableDayIndex; i > lastFullIndex; i--) {
-    if (computedDays[i].backupType === 'differential') {
-      latestDiffIndex = i;
-      break;
-    }
-  }
-
-  if (latestDiffIndex !== -1) {
-    // Todas las copias (Incrementales o Diferenciales previas) entre lastFullIndex y latestDiffIndex se DESCARTAN
-    // porque la última Diferencial contiene absolutamente todos los cambios desde la última Completa.
-    for (let i = lastFullIndex + 1; i < latestDiffIndex; i++) {
-      if (computedDays[i].backupType !== 'none') {
-        discardedBackups.push({
-          dayId: computedDays[i].id,
-          dayName: computedDays[i].name,
-          backupType: computedDays[i].backupType,
-          sizeGB: computedDays[i].storedBackupSizeGB,
-          discardReason: `Innecesaria: La Copia Diferencial del ${computedDays[latestDiffIndex].name} ya acumula todos los cambios ocurridos desde la Completa del ${
-            lastFullIndex >= 0 ? computedDays[lastFullIndex].name : 'Domingo Anterior'
-          }.`,
-        });
-      }
-    }
-
-    // Añadimos la última Diferencial como Paso 2
-    const diffDay = computedDays[latestDiffIndex];
-    const readMin = Number(
-      ((diffDay.storedBackupSizeGB * 1024) / medium.readSpeedMBps / 60).toFixed(1)
-    );
-    steps.push({
-      stepNumber: steps.length + 1,
-      dayId: diffDay.id,
-      dayName: diffDay.name,
-      backupType: 'differential',
-      sizeToReadGB: diffDay.storedBackupSizeGB,
-      readDurationMinutes: readMin,
-      reason: `Última Copia Diferencial disponible. Aplica de golpe todos los cambios desde la Completa hasta el ${diffDay.name}.`,
-      dataCoveredDescription: `Cambios acumulados hasta ${diffDay.name} (${diffDay.rawBackupSizeGB} GB lógicos).`,
-      isCorrupted: corruptedDayId === diffDay.id,
-    });
-
-    // Si después de latestDiffIndex hay copias INCREMENTALES hasta lastAvailableDayIndex, hay que aplicarlas en orden
-    for (let i = latestDiffIndex + 1; i <= lastAvailableDayIndex; i++) {
-      const incDay = computedDays[i];
-      if (incDay.backupType === 'incremental') {
-        const incReadMin = Number(
-          ((incDay.storedBackupSizeGB * 1024) / medium.readSpeedMBps / 60).toFixed(1)
-        );
-        steps.push({
-          stepNumber: steps.length + 1,
-          dayId: incDay.id,
-          dayName: incDay.name,
-          backupType: 'incremental',
-          sizeToReadGB: incDay.storedBackupSizeGB,
-          readDurationMinutes: incReadMin,
-          reason: `Copia Incremental posterior a la Diferencial del ${diffDay.name}. Necesaria en orden cronológico.`,
-          dataCoveredDescription: `Cambios exclusivos del ${incDay.name} (${incDay.rawBackupSizeGB} GB lógicos).`,
-          isCorrupted: corruptedDayId === incDay.id,
-        });
-      }
-    }
-  } else {
-    // No hay Diferenciales en este tramo: necesitamos TODAS las copias Incrementales en estricto orden cronológico
-    for (let i = lastFullIndex + 1; i <= lastAvailableDayIndex; i++) {
-      const incDay = computedDays[i];
-      if (incDay.backupType === 'incremental') {
-        const incReadMin = Number(
-          ((incDay.storedBackupSizeGB * 1024) / medium.readSpeedMBps / 60).toFixed(1)
-        );
-        steps.push({
-          stepNumber: steps.length + 1,
-          dayId: incDay.id,
-          dayName: incDay.name,
-          backupType: 'incremental',
-          sizeToReadGB: incDay.storedBackupSizeGB,
-          readDurationMinutes: incReadMin,
-          reason: `Eslabón obligatorio de la cadena incremental. Contiene los cambios exclusivos registrados el ${incDay.name}.`,
-          dataCoveredDescription: `Cambios del ${incDay.name} (${incDay.rawBackupSizeGB} GB lógicos).`,
-          isCorrupted: corruptedDayId === incDay.id,
-        });
-      }
-    }
-  }
-
-  // Verificar si alguno de los pasos requeridos está marcado como corrupto
-  const corruptedStep = steps.find((s) => s.isCorrupted);
-  const isPartialDueToCorruption = Boolean(corruptedStep);
-
-  // Calcular totales de lectura y tiempo (RTO)
-  const totalVolumeToReadGB = Number(
-    steps.reduce((acc, s) => acc + s.sizeToReadGB, 0).toFixed(1)
-  );
-  // Añadimos una sobrecarga realista de montaje/verificación por cada soporte adicional (1.5 min en disco/nube, 4 min en cinta LTO)
+  const totalVolumeToReadGB = Number(steps.reduce((acc, s) => acc + s.sizeToReadGB, 0).toFixed(1));
+  // Montaje y verificación de cada soporte adicional: 3,5 min en cinta (carga y búsqueda), 1 min en disco o nube
   const mountOverheadPerStep = medium.category === 'tape' ? 3.5 : 1.0;
-  const rawReadMinutes = steps.reduce((acc, s) => acc + s.readDurationMinutes, 0);
   const totalRestoreTimeMinutes = Number(
-    (rawReadMinutes + (steps.length - 1) * mountOverheadPerStep).toFixed(1)
+    (steps.reduce((acc, s) => acc + s.readDurationMinutes, 0) + (steps.length - 1) * mountOverheadPerStep).toFixed(1)
   );
 
-  // Calcular RPO (Horas y GB de datos perdidos no respaldados)
-  // ¿Cuándo fue el último backup real ejecutado en o antes de lastAvailableDayIndex?
-  let lastActualBackupIndex = -1;
-  for (let i = lastAvailableDayIndex; i >= 0; i--) {
-    if (computedDays[i].backupType !== 'none') {
-      lastActualBackupIndex = i;
-      break;
-    }
-  }
-
+  // RPO: desde el punto restaurado hasta el siniestro; se pierden los cambios de esos días
+  const rpoHoursLost = Math.max(0, disasterHour - pointHour(point));
   let rpoDataLostGB = 0;
-  let daysWithoutBackupCount = 0;
+  for (let i = point + 1; i <= disasterIndex; i++) rpoDataLostGB += computedDays[i].dailyChangeGB;
+  rpoDataLostGB = Number(rpoDataLostGB.toFixed(1));
 
-  if (disasterTiming === 'before_backup') {
-    // Se pierde lo generado durante el día del desastre antes del backup nocturno
-    rpoDataLostGB += disasterDay.dailyChangeGB;
-    daysWithoutBackupCount += 0.65; // ~16 horas desde las 22:00 de la noche anterior hasta las 14:00
-  }
-
-  // Además, si hubo días con "Sin Copia" ('none') entre el último backup real y el momento disponible:
-  for (let i = lastActualBackupIndex + 1; i <= lastAvailableDayIndex; i++) {
-    rpoDataLostGB += computedDays[i].dailyChangeGB;
-    daysWithoutBackupCount += 1;
-  }
-
-  const rpoHoursLost = Math.round(daysWithoutBackupCount * 24);
-
-  let pedagogicalSummary = '';
-  if (isPartialDueToCorruption && corruptedStep) {
-    if (corruptedStep.backupType === 'full') {
-      pedagogicalSummary = `FALLO CRÍTICO DE RESTAURACIÓN: El soporte de la Copia Completa del ${corruptedStep.dayName} está dañado. Sin la base Completa, todas las copias diferenciales e incrementales posteriores son inútiles.`;
-    } else if (corruptedStep.backupType === 'incremental') {
-      pedagogicalSummary = `CADENA INCREMENTAL ROTA: El soporte Incremental del ${corruptedStep.dayName} (Paso ${corruptedStep.stepNumber}) está corrupto. En una estrategia incremental, si falla un solo eslabón intermedio, se corrompe o interrumpe la coherencia de todos los días posteriores.`;
-    } else {
-      pedagogicalSummary = `SOPORTE DIFERENCIAL DAÑADO: La copia Diferencial del ${corruptedStep.dayName} está dañada. Si conservas una Diferencial del día anterior en buen estado, podrías recurrir a ella asumiendo un RPO mayor.`;
-    }
-  } else if (corruptedDayId) {
-    const discardedCorrupt = discardedBackups.find((d) => d.dayId === corruptedDayId);
-    if (discardedCorrupt) {
-      pedagogicalSummary = `¡VENTAJA DEMOSTRADA! Aunque el soporte del ${discardedCorrupt.dayName} (${getBackupTypeLabel(
-        discardedCorrupt.backupType
-      )}) está dañado, la restauración TIENE ÉXITO AL 100% porque ese conjunto fue reemplazado por una copia posterior y no se necesita leer.`;
-    }
-  }
-
-  if (!pedagogicalSummary) {
-    if (steps.length === 1) {
-      pedagogicalSummary = `Restauración directa en 1 solo paso cargando únicamente la Copia Completa (${steps[0].dayName}). Es el escenario con menor complejidad operativa.`;
-    } else if (latestDiffIndex !== -1 && steps.length === 2) {
-      pedagogicalSummary = `Restauración óptima en 2 pasos (Completa + Última Diferencial). Se ignoran ${discardedBackups.length} copias intermedias, logrando un RTO rápido sin depender de una cadena larga.`;
-    } else {
-      pedagogicalSummary = `Restauración secuencial en ${steps.length} pasos. Deben leerse en orden cronológico estricto desde la Completa inicial hasta el último conjunto incremental previo al fallo.`;
-    }
+  let pedagogicalSummary: string;
+  if (isPartialDueToCorruption) {
+    const corrupt = computedDays[corruptedIndex];
+    const label = getBackupTypeLabel(corrupt.backupType);
+    const why =
+      corrupt.backupType === 'incremental'
+        ? 'Cadena incremental rota: cada eslabón depende del anterior, así que nada de lo posterior se puede aplicar.'
+        : corrupt.backupType === 'differential'
+        ? 'Diferencial dañada: se recurre a una cadena anterior que no la necesita.'
+        : 'Completa dañada: todo lo que se apoyaba en ella queda inservible y hay que volver a una base anterior.';
+    pedagogicalSummary = `${why} La copia ${label} del ${corrupt.name} era imprescindible para restaurar el ${nameOf(
+      ideal.point
+    )}; lo mejor posible es volver al estado del ${nameOf(point)} en ${steps.length} paso(s), perdiendo ${formatRpoHours(
+      rpoHoursLost
+    )} y ${rpoDataLostGB} GB.`;
+  } else if (corruptedIndex >= 0 && corruptedIndex <= lastAvailableDayIndex && computedDays[corruptedIndex].backupType !== 'none') {
+    const corrupt = computedDays[corruptedIndex];
+    pedagogicalSummary = `¡VENTAJA DEMOSTRADA! Aunque el soporte del ${corrupt.name} (${getBackupTypeLabel(
+      corrupt.backupType
+    )}) está dañado, la restauración tiene éxito al 100 %: la cadena elegida no lo necesita.`;
+  } else if (steps.length === 1) {
+    pedagogicalSummary = `Restauración directa en 1 solo paso cargando únicamente la Copia Completa (${steps[0].dayName}). Es el escenario con menor complejidad operativa.`;
+  } else if (steps.length === 2 && steps[1].backupType === 'differential') {
+    pedagogicalSummary = `Restauración óptima en 2 pasos (Completa + última Diferencial). Se omiten ${discardedBackups.length} copias intermedias y el RTO no depende de una cadena larga.`;
+  } else {
+    pedagogicalSummary = `Restauración secuencial en ${steps.length} pasos. Deben leerse en orden cronológico estricto desde la Completa hasta la última copia previa al fallo.`;
   }
 
   return {
-    disasterDayId,
-    disasterDayName: disasterDay.name,
-    disasterTiming,
-    corruptedDayId,
-    isRecoverable: !corruptedStep || corruptedStep.backupType !== 'full',
+    ...base,
+    isRecoverable: true,
     isPartialDueToCorruption,
-    failureReason:
-      corruptedStep?.backupType === 'full'
-        ? `La Copia Completa base del ${corruptedStep.dayName} está dañada.`
-        : undefined,
+    failureReason: undefined,
     steps,
     discardedBackups,
     totalVolumeToReadGB,
     totalRestoreTimeMinutes,
-    meetsRTOSLA: totalRestoreTimeMinutes <= params.targetRTOMinutes && !isPartialDueToCorruption,
+    meetsRTOSLA: totalRestoreTimeMinutes <= params.targetRTOMinutes,
     rpoHoursLost,
     rpoDataLostGB,
-    meetsRPOSLA: rpoHoursLost <= params.targetRPOHours && !isPartialDueToCorruption,
+    meetsRPOSLA: rpoHoursLost <= params.targetRPOHours,
     setsRequiredCount: steps.length,
+    restorePointIndex: point,
     pedagogicalSummary,
   };
 }
