@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="100%" height="100%">
+  <defs>
+    <style>
+      .font-sans { font-family: -apple-system, BlinkMacSystemFont, "Plus Jakarta Sans", "Segoe UI", Roboto, sans-serif; }
+      .font-mono { font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Consolas, monospace; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="640" fill="#f8fafc" rx="12" />
+
+  <!-- Top SLA Alert Banner -->
+  <rect x="28" y="24" width="1144" height="74" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" />
+  <text x="52" y="50" class="font-sans" font-size="13" font-weight="700" fill="#991b1b">▲ INCUMPLIMIENTO DE OBJETIVOS SLA DETECTADO EN VIERNES (TRAS BACKUP NOCTURNO)</text>
+  <text x="52" y="72" class="font-sans" font-size="12" fill="#7f1d1d">• Alerta RTO: El tiempo de restauración es de 104.1 min, superando el objetivo máximo de 60 min (+44.1 min). Recomendación: Usa soporte LTO-8 o 10GbE.</text>
+  <rect x="1010" y="38" width="142" height="28" rx="6" fill="#fee2e2" stroke="#f87171" />
+  <text x="1024" y="56" class="font-mono" font-size="11" font-weight="700" fill="#991b1b">▲ RTO: 104m &gt; 60m</text>
+
+  <!-- Left: Disaster Scenario Config (7 cols) -->
+  <rect x="28" y="114" width="660" height="210" rx="12" fill="#ffffff" stroke="#e2e8f0" />
+  <text x="48" y="142" class="font-sans" font-size="14" font-weight="700" fill="#0f172a">01. Configuración del Escenario de Desastre (Día: Viernes · 23:59h)</text>
+
+  <!-- 7 Day Buttons -->
+  <rect x="48" y="160" width="80" height="46" rx="6" fill="#f8fafc" stroke="#cbd5e1" />
+  <text x="74" y="182" class="font-sans" font-size="12" font-weight="700" fill="#334155">LUN</text>
+  <text x="72" y="198" class="font-mono" font-size="10" fill="#64748b">Comp.</text>
+
+  <rect x="138" y="160" width="80" height="46" rx="6" fill="#f8fafc" stroke="#cbd5e1" />
+  <text x="164" y="182" class="font-sans" font-size="12" font-weight="700" fill="#334155">MAR</text>
+  <text x="164" y="198" class="font-mono" font-size="10" fill="#64748b">Incr.</text>
+
+  <rect x="228" y="160" width="80" height="46" rx="6" fill="#f8fafc" stroke="#cbd5e1" />
+  <text x="254" y="182" class="font-sans" font-size="12" font-weight="700" fill="#334155">MIÉ</text>
+  <text x="254" y="198" class="font-mono" font-size="10" fill="#64748b">Incr.</text>
+
+  <rect x="318" y="160" width="80" height="46" rx="6" fill="#fef2f2" stroke="#ef4444" />
+  <text x="340" y="182" class="font-sans" font-size="12" font-weight="700" fill="#991b1b">JUE ▲</text>
+  <text x="344" y="198" class="font-mono" font-size="10" fill="#991b1b">Dife.</text>
+
+  <rect x="408" y="160" width="80" height="46" rx="6" fill="#dc2626" stroke="#b91c1c" />
+  <text x="430" y="182" class="font-sans" font-size="12" font-weight="700" fill="#ffffff">VIE ▲</text>
+  <text x="434" y="198" class="font-mono" font-size="10" fill="#fee2e2">Incr.</text>
+
+  <rect x="498" y="160" width="80" height="46" rx="6" fill="#fef2f2" stroke="#ef4444" />
+  <text x="520" y="182" class="font-sans" font-size="12" font-weight="700" fill="#991b1b">SÁB ▲</text>
+  <text x="524" y="198" class="font-mono" font-size="10" fill="#991b1b">Incr.</text>
+
+  <rect x="588" y="160" width="80" height="46" rx="6" fill="#fef2f2" stroke="#ef4444" />
+  <text x="610" y="182" class="font-sans" font-size="12" font-weight="700" fill="#991b1b">DOM ▲</text>
+  <text x="614" y="198" class="font-mono" font-size="10" fill="#991b1b">Sin.</text>
+
+  <text x="48" y="236" class="font-sans" font-size="12" font-weight="600" fill="#334155">Simulador de Tolerancia a Fallos (Dañar soporte intermedio):</text>
+  <rect x="48" y="248" width="190" height="28" rx="6" fill="#dc2626" />
+  <text x="62" y="266" class="font-mono" font-size="11" font-weight="700" fill="#ffffff">✕ Martes (DAÑADO - Omitido)</text>
+  <text x="252" y="266" class="font-sans" font-size="11" fill="#059669" font-weight="600">¡La restauración sobrevive porque la Diferencial del Jueves lo reemplaza!</text>
+
+  <!-- Right: RTO / RPO Validation Cards (5 cols) -->
+  <rect x="704" y="114" width="468" height="210" rx="12" fill="#ffffff" stroke="#ef4444" stroke-width="1.5" />
+  <text x="724" y="142" class="font-sans" font-size="14" font-weight="700" fill="#0f172a">02. Validación de Objetivos RTO y RPO</text>
+
+  <!-- RTO Card (Red Alert) -->
+  <rect x="724" y="158" width="208" height="88" rx="10" fill="#fef2f2" stroke="#ef4444" stroke-width="1.5" />
+  <text x="738" y="178" class="font-sans" font-size="11" font-weight="700" fill="#991b1b">RTO Calculado · ▲ EXCEDE SLA</text>
+  <text x="738" y="208" class="font-mono" font-size="22" font-weight="700" fill="#dc2626">104.1 min</text>
+  <text x="738" y="230" class="font-mono" font-size="10" fill="#991b1b">▲ Supera SLA (60m) en +44.1 min</text>
+
+  <!-- RPO Card (Green OK) -->
+  <rect x="944" y="158" width="208" height="88" rx="10" fill="#ecfdf5" stroke="#10b981" />
+  <text x="958" y="178" class="font-sans" font-size="11" font-weight="700" fill="#065f46">RPO Calculado · ✓ OK</text>
+  <text x="958" y="208" class="font-mono" font-size="22" font-weight="700" fill="#059669">0 h</text>
+  <text x="958" y="230" class="font-mono" font-size="10" fill="#065f46">0 GB perdidos ( ≤ 24h SLA)</text>
+
+  <text x="724" y="274" class="font-sans" font-size="11" fill="#334155">Total a leer: 670 GB en 3 pasos exactos (Lunes Full → Jueves Diff → Viernes Inc)</text>
+
+  <!-- Bottom Left: Step-by-step Runbook -->
+  <rect x="28" y="340" width="660" height="276" rx="12" fill="#ffffff" stroke="#e2e8f0" />
+  <text x="48" y="368" class="font-sans" font-size="14" font-weight="700" fill="#0f172a">04. Secuencia Exacta de Restauración (Runbook Paso a Paso)</text>
+
+  <!-- Step 1 -->
+  <rect x="48" y="384" width="620" height="64" rx="8" fill="#f8fafc" stroke="#cbd5e1" />
+  <rect x="62" y="398" width="28" height="28" rx="6" fill="#0284c7" />
+  <text x="72" y="417" class="font-mono" font-size="13" font-weight="700" fill="#ffffff">1</text>
+  <text x="102" y="410" class="font-sans" font-size="13" font-weight="700" fill="#0f172a">Cargar Copia Completa del Lunes</text>
+  <text x="102" y="430" class="font-sans" font-size="11" fill="#475569">Restaura el 100% del volumen base inicial hasta el Lunes.</text>
+  <text x="550" y="412" class="font-mono" font-size="13" font-weight="700" fill="#0f172a">500 GB (76.2m)</text>
+
+  <!-- Step 2 -->
+  <rect x="48" y="458" width="620" height="64" rx="8" fill="#f8fafc" stroke="#cbd5e1" />
+  <rect x="62" y="472" width="28" height="28" rx="6" fill="#d97706" />
+  <text x="72" y="491" class="font-mono" font-size="13" font-weight="700" fill="#ffffff">2</text>
+  <text x="102" y="484" class="font-sans" font-size="13" font-weight="700" fill="#0f172a">Cargar Copia Diferencial del Jueves (Salta Mar y Mié)</text>
+  <text x="102" y="504" class="font-sans" font-size="11" fill="#475569">Aplica de golpe todos los cambios acumulados de Martes a Jueves.</text>
+  <text x="550" y="486" class="font-mono" font-size="13" font-weight="700" fill="#0f172a">120 GB (18.3m)</text>
+
+  <!-- Step 3 -->
+  <rect x="48" y="532" width="620" height="64" rx="8" fill="#f8fafc" stroke="#cbd5e1" />
+  <rect x="62" y="546" width="28" height="28" rx="6" fill="#059669" />
+  <text x="72" y="565" class="font-mono" font-size="13" font-weight="700" fill="#ffffff">3</text>
+  <text x="102" y="558" class="font-sans" font-size="13" font-weight="700" fill="#0f172a">Cargar Copia Incremental del Viernes</text>
+  <text x="102" y="578" class="font-sans" font-size="11" fill="#475569">Añade los cambios exclusivos registrados el Viernes tras la Diferencial.</text>
+  <text x="558" y="560" class="font-mono" font-size="13" font-weight="700" fill="#0f172a">50 GB (7.6m)</text>
+
+  <!-- Bottom Right: Discarded / Skipped Backups -->
+  <rect x="704" y="340" width="468" height="276" rx="12" fill="#ffffff" stroke="#e2e8f0" />
+  <text x="724" y="368" class="font-sans" font-size="14" font-weight="700" fill="#0f172a">05. Copias Omitidas (No Necesarias para Restaurar)</text>
+
+  <rect x="724" y="388" width="428" height="82" rx="8" fill="#f8fafc" stroke="#e2e8f0" />
+  <text x="740" y="410" class="font-sans" font-size="12" font-weight="700" fill="#334155">Martes — Copia Incremental (40 GB ahorrados)</text>
+  <text x="740" y="432" class="font-sans" font-size="11" fill="#64748b">Innecesaria: La Copia Diferencial del Jueves ya acumula todos los</text>
+  <text x="740" y="450" class="font-sans" font-size="11" fill="#64748b">cambios ocurridos desde la Completa del Lunes.</text>
+
+  <rect x="724" y="482" width="428" height="82" rx="8" fill="#f8fafc" stroke="#e2e8f0" />
+  <text x="740" y="504" class="font-sans" font-size="12" font-weight="700" fill="#334155">Miércoles — Copia Incremental (35 GB ahorrados)</text>
+  <text x="740" y="526" class="font-sans" font-size="11" fill="#64748b">Innecesaria: Englobada íntegramente dentro de la Diferencial</text>
+  <text x="740" y="544" class="font-sans" font-size="11" fill="#64748b">acumulativa del Jueves.</text>
+</svg>
